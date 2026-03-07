@@ -47,7 +47,8 @@ export interface Z3PluginOptions {
   generateExample?: boolean;
 }
 
-const Z3_FILES = ["z3-built.js", "z3-built.wasm", "z3-built.worker.js"];
+const Z3_FILES = ["z3-built.js", "z3-built.wasm"];
+const OPTIONAL_Z3_FILES = ["z3-built.worker.js"];
 
 /**
  * Vite plugin that sets up Z3-solver for browser use.
@@ -156,11 +157,14 @@ export function z3Plugin(options: Z3PluginOptions = {}): Plugin[] {
         }
 
         // 1. Copy Z3 WASM files
-        for (const file of Z3_FILES) {
+        for (const file of [...Z3_FILES, ...OPTIONAL_Z3_FILES]) {
+          const isOptional = OPTIONAL_Z3_FILES.includes(file);
           const src = join(z3BuildDir, file);
           const target = join(dest, file);
           if (!existsSync(src)) {
-            console.warn(`[vite-plugin-z3] Missing file: ${src}`);
+            if (!isOptional) {
+              console.warn(`[vite-plugin-z3] Missing required file: ${src}`);
+            }
             continue;
           }
           if (!existsSync(target) || needsUpdate(src, target)) {

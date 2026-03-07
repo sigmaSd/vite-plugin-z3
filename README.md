@@ -152,7 +152,7 @@ process pthread messages while the solver runs.
 | --------------------- | ------- | ---------------------------------------------------------- |
 | `z3-built.wasm`       | ~33 MB  | Z3 solver compiled to WebAssembly                          |
 | `z3-built.js`         | ~345 KB | Emscripten glue code, sets `globalThis.initZ3`             |
-| `z3-built.worker.js`  | ~8 KB   | Emscripten pthread worker template                         |
+| `z3-built.worker.js`  | ~8 KB   | (Legacy) Emscripten pthread worker template                |
 | `z3-wrapper.js`       | ~266 KB | Bundled z3-solver high-level API (auto-built by plugin)    |
 | `z3-solver-worker.js` | ~2 KB   | Example solver worker (generated once, then yours to edit) |
 
