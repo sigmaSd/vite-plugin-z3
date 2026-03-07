@@ -36,7 +36,7 @@ export interface Z3WorkerHandle {
 /**
  * Create a Z3 worker and wait for it to finish loading WASM.
  *
- * @param workerUrl - URL to your worker script (must load z3-worker-bootstrap.js)
+ * @param workerUrl - URL to your worker script
  * @returns A handle to communicate with the Z3 worker
  *
  * @example

@@ -289,6 +289,10 @@ async function getZ3() {
   return _z3;
 }
 
+// Signal that the worker is loaded and ready to receive messages.
+// This is required for createZ3Worker() in @sigmasd/vite-plugin-z3/runtime.
+self.postMessage({ type: "z3:ready" });
+
 // ─── Your Solver Logic ────────────────────────────────────────────────
 // Modify this function with your own constraints!
 async function solve(data) {
@@ -352,6 +356,7 @@ export function solveWith(workerUrl, data) {
   return new Promise((resolve, reject) => {
     const worker = new Worker(workerUrl);
     worker.onmessage = (e) => {
+      if (e.data?.type === "z3:ready") return;
       worker.terminate();
       if (e.data.ok) resolve(e.data.result);
       else reject(new Error(e.data.error));
