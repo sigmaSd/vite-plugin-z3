@@ -15,7 +15,8 @@ deno add jsr:@sigmasd/vite-plugin-z3
 deno add npm:z3-solver
 
 # npm
-npx jsr add @sigmasd/vite-plugin-z3 z3-solver
+npx jsr add @sigmasd/vite-plugin-z3
+npm install z3-solver
 ```
 
 ## Quick Start
