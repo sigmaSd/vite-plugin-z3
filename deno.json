@@ -1,0 +1,19 @@
+{
+  "name": "@sigmasd/vite-plugin-z3",
+  "version": "0.3.0",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/mod.ts",
+    "./runtime": "./src/runtime.ts"
+  },
+  "publish": {
+    "include": ["src/", "README.md", "LICENSE"]
+  },
+  "imports": {
+    "esbuild": "npm:esbuild@^0.27.3",
+    "vite": "npm:vite@^7.0.0"
+  },
+  "compilerOptions": {
+    "lib": ["dom", "dom.iterable", "deno.ns"]
+  }
+}
