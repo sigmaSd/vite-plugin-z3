@@ -3,7 +3,7 @@
 A Vite plugin that sets up [Z3-solver](https://github.com/Z3Prover/z3) for
 browser use with zero manual configuration.
 
-Z3 is a powerful SMT solver from Microsoft Research. Running it in the browser
+Z3 is a powerful SMT solver. Running it in the browser
 requires WASM files, special HTTP headers, and Web Workers. This plugin handles
 all of that.
 
@@ -35,7 +35,7 @@ export default defineConfig({
 ### 2. Start your dev server
 
 ```sh
-deno task dev   # or: npx vite
+deno task dev   # or: dx vite, npx vite
 ```
 
 On first run the plugin will:

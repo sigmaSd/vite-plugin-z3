@@ -4,7 +4,6 @@ import {
   copyFileSync,
   existsSync,
   mkdirSync,
-  readdirSync,
   statSync,
   unlinkSync,
   writeFileSync,
@@ -72,28 +71,7 @@ export function z3Plugin(options: Z3PluginOptions = {}): Plugin[] {
   let z3BuildDir: string;
 
   function resolveZ3BuildDir(root: string): string {
-    // Strategy 1: Deno's node_modules/.deno directory
-    try {
-      const denoDir = join(root, "node_modules", ".deno");
-      if (existsSync(denoDir)) {
-        for (const entry of readdirSync(denoDir, { withFileTypes: true })) {
-          if (entry.name.startsWith("z3-solver@") && entry.isDirectory()) {
-            const buildDir = join(
-              denoDir,
-              entry.name,
-              "node_modules",
-              "z3-solver",
-              "build",
-            );
-            if (existsSync(join(buildDir, "z3-built.js"))) {
-              return buildDir;
-            }
-          }
-        }
-      }
-    } catch { /* fall through */ }
-
-    // Strategy 2: Standard node_modules
+    // Strategy 1: Standard node_modules
     try {
       const buildDir = join(root, "node_modules", "z3-solver", "build");
       if (existsSync(join(buildDir, "z3-built.js"))) {
@@ -101,7 +79,7 @@ export function z3Plugin(options: Z3PluginOptions = {}): Plugin[] {
       }
     } catch { /* fall through */ }
 
-    // Strategy 3: createRequire (Node.js)
+    // Strategy 2: createRequire (Node.js)
     try {
       const require = createRequire(import.meta.url);
       const browserJs = require.resolve("z3-solver/build/browser.js");
