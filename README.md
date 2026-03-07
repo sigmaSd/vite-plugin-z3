@@ -3,9 +3,8 @@
 A Vite plugin that sets up [Z3-solver](https://github.com/Z3Prover/z3) for
 browser use with zero manual configuration.
 
-Z3 is a powerful SMT solver. Running it in the browser
-requires WASM files, special HTTP headers, and Web Workers. This plugin handles
-all of that.
+Z3 is a powerful SMT solver. Running it in the browser requires WASM files,
+special HTTP headers, and Web Workers. This plugin handles all of that.
 
 ## Install
 
