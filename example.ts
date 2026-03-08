@@ -3,6 +3,7 @@
 // vite.config.ts:
 //
 //   import { z3Plugin } from "@sigmasd/vite-plugin-z3";
+//   import { defineConfig } from "vite";
 //   export default defineConfig({
 //     plugins: [
 //       z3Plugin({

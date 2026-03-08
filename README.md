@@ -46,14 +46,17 @@ On first run the plugin will:
 
 - Copy Z3 WASM files to your public directory
 - **Bundle `z3-wrapper.js`** (the high-level API) via esbuild
-- **Generate `src/z3-worker.ts`** — a TypeScript example solver you can edit
-- **Bundle `public/z3-worker.js`** automatically from your TS source
+- **Generate your worker source** (e.g., `src/z3-worker.ts`) — an example solver
+  you can edit
+- **Bundle your worker** (e.g., `public/z3-worker.js`) automatically from your
+  source
 - Inject COOP/COEP headers so `SharedArrayBuffer` works
 
-### 3. Edit your solver (`src/z3-worker.ts`)
+### 3. Edit your solver
 
-The plugin provides the initialized `z3` instance to your `solve` function. You
-get full autocompletion if you import types from `z3-solver`:
+The plugin generates a template for any missing worker source you specify in the
+`workers` option. It provides the initialized `z3` instance to your `solve`
+function. You get full autocompletion if you import types from `z3-solver`:
 
 ```ts
 import type { Z3HighLevel } from "z3-solver";
@@ -160,13 +163,13 @@ process pthread messages while the solver runs.
 
 ### Static Files
 
-| File                  | Size    | Purpose                                                    |
-| --------------------- | ------- | ---------------------------------------------------------- |
-| `z3-built.wasm`       | ~33 MB  | Z3 solver compiled to WebAssembly                          |
-| `z3-built.js`         | ~345 KB | Emscripten glue code, sets `globalThis.initZ3`             |
-| `z3-built.worker.js`  | ~8 KB   | (Legacy) Emscripten pthread worker template                |
-| `z3-wrapper.js`       | ~266 KB | Bundled z3-solver high-level API (auto-built by plugin)    |
-| `z3-solver-worker.js` | ~2 KB   | Example solver worker (generated once, then yours to edit) |
+| File                 | Size    | Purpose                                                 |
+| -------------------- | ------- | ------------------------------------------------------- |
+| `z3-built.wasm`      | ~33 MB  | Z3 solver compiled to WebAssembly                       |
+| `z3-built.js`        | ~345 KB | Emscripten glue code, sets `globalThis.initZ3`          |
+| `z3-built.worker.js` | ~8 KB   | (Legacy) Emscripten pthread worker template             |
+| `z3-wrapper.js`      | ~266 KB | Bundled z3-solver high-level API (auto-built by plugin) |
+| `[your-worker].js`   | ~2 KB   | Your bundled worker (generated from your TS/JS source)  |
 
 ### Required HTTP Headers
 

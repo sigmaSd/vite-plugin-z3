@@ -72,11 +72,16 @@ export function createZ3Worker(workerUrl: string): Promise<Z3WorkerHandle> {
           worker,
           run<T = unknown>(data: unknown): Promise<T> {
             return new Promise((res, rej) => {
-              worker.onmessage = (e) => {
+              const onResult = (e: MessageEvent) => {
+                worker.removeEventListener("message", onResult);
                 if (e.data.ok) res(e.data.result ?? e.data.schedule ?? e.data);
                 else rej(new Error(e.data.error));
               };
-              worker.onerror = (err) => rej(err);
+              worker.addEventListener("message", onResult);
+              worker.onerror = (err) => {
+                worker.removeEventListener("message", onResult);
+                rej(err);
+              };
               worker.postMessage(data);
             });
           },
