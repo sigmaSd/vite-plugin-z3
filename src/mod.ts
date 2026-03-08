@@ -59,7 +59,7 @@ export interface Z3PluginOptions {
    * or a mapping of output names to source paths (e.g. { "my-solver": "src/solver.ts" }).
    * Bundled workers will be placed in the public directory.
    */
-  workers?: string[] | Record<string, string>;
+  workers: string[] | Record<string, string>;
 }
 
 const Z3_FILES = ["z3-built.js", "z3-built.wasm"];
@@ -75,7 +75,7 @@ const OPTIONAL_Z3_FILES = ["z3-built.worker.js"];
  * - Generating an example solver worker
  * - Providing a virtual module for easy Z3 worker creation
  */
-export function z3Plugin(options: Z3PluginOptions = {}): Plugin[] {
+export function z3Plugin(options: Z3PluginOptions): Plugin[] {
   const {
     base = "/",
     coep = "credentialless",
@@ -197,16 +197,14 @@ export function z3Plugin(options: Z3PluginOptions = {}): Plugin[] {
         }
 
         // 3. Bundle custom workers
-        const workersMap = options.workers
-          ? (Array.isArray(options.workers)
-            ? Object.fromEntries(
-              options.workers.map((src) => [
-                src.split("/").pop()?.replace(/\.(ts|js)$/, "") || "worker",
-                src,
-              ]),
-            )
-            : options.workers)
-          : {};
+        const workersMap = Array.isArray(options.workers)
+          ? Object.fromEntries(
+            options.workers.map((src) => [
+              src.split("/").pop()?.replace(/\.(ts|js)$/, "") || "worker",
+              src,
+            ]),
+          )
+          : options.workers;
 
         for (const [name, srcPath] of Object.entries(workersMap)) {
           const fullSrcPath = join(root, srcPath);
@@ -239,39 +237,25 @@ export function z3Plugin(options: Z3PluginOptions = {}): Plugin[] {
         }
 
         // 3.5 Generate registry file (replaces virtual module for better LSP support)
-        if (Object.keys(workersMap).length > 0) {
-          const fullRegistryPath = join(root, registryPath);
-          const registryDir = dirname(fullRegistryPath);
-          if (!existsSync(registryDir)) {
-            mkdirSync(registryDir, { recursive: true });
-          }
-
-          const registryContent = generateVirtualModule(
-            base,
-            Object.keys(workersMap),
-          );
-
-          if (
-            !existsSync(fullRegistryPath) ||
-            statSync(fullRegistryPath).size !== registryContent.length
-          ) {
-            writeFileSync(fullRegistryPath, registryContent);
-            console.log(
-              `[vite-plugin-z3] Generated worker registry: ${registryPath}`,
-            );
-          }
+        const fullRegistryPath = join(root, registryPath);
+        const registryDir = dirname(fullRegistryPath);
+        if (!existsSync(registryDir)) {
+          mkdirSync(registryDir, { recursive: true });
         }
 
-        // 4. Generate example solver worker (if no workers were specified)
-        if (generateExample && Object.keys(workersMap).length === 0) {
-          const srcDir = join(root, "src");
-          const tsExamplePath = join(srcDir, "z3.worker.ts");
-          if (existsSync(srcDir) && !existsSync(tsExamplePath)) {
-            writeFileSync(tsExamplePath, generateExampleWorkerSource(true));
-            console.log(
-              "[vite-plugin-z3] Generated src/z3.worker.ts — add this to your z3Plugin workers option!",
-            );
-          }
+        const registryContent = generateVirtualModule(
+          base,
+          Object.keys(workersMap),
+        );
+
+        if (
+          !existsSync(fullRegistryPath) ||
+          statSync(fullRegistryPath).size !== registryContent.length
+        ) {
+          writeFileSync(fullRegistryPath, registryContent);
+          console.log(
+            `[vite-plugin-z3] Generated worker registry: ${registryPath}`,
+          );
         }
       },
     },
@@ -286,13 +270,11 @@ export function z3Plugin(options: Z3PluginOptions = {}): Plugin[] {
 
       load(id) {
         if (id === "\0z3:workers") {
-          const workers = options.workers
-            ? (Array.isArray(options.workers)
-              ? options.workers.map((src) =>
-                src.split("/").pop()?.replace(/\.(ts|js)$/, "") || "worker"
-              )
-              : Object.keys(options.workers))
-            : [];
+          const workers = Array.isArray(options.workers)
+            ? options.workers.map((src) =>
+              src.split("/").pop()?.replace(/\.(ts|js)$/, "") || "worker"
+            )
+            : Object.keys(options.workers);
 
           return generateVirtualModule(base, workers);
         }
