@@ -491,6 +491,7 @@ export const ${camelName} = {
   /** Public URL to the bundled worker */
   url: "${b}${name}.js",
   /** Run a solve task and terminate immediately */
+  // deno-fmt-ignore
   // deno-lint-ignore no-explicit-any
   run: <T = any>(data: any): Promise<T> => solveWith("${b}${name}.js", data),
   /** Create a long-lived worker instance. Don't forget to .terminate()! */
