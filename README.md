@@ -80,12 +80,13 @@ export async function solve(z3: Z3HighLevel, data: any) {
 
 ### 4. Use from your app
 
-The plugin makes it easy to use your workers without remembering file paths. Use
-the `z3:workers` namespace to get pre-configured handles:
+The plugin automatically generates a registry file (default:
+`src/z3-workers.ts`) that exports type-safe handles for all your workers. This
+gives you full autocompletion and zero LSP warnings:
 
 ```ts
 import { isZ3Supported } from "@sigmasd/vite-plugin-z3/runtime";
-import { z3Worker } from "z3:workers";
+import { z3Worker } from "./z3-workers"; // Import from the generated file
 
 if (!isZ3Supported()) {
   alert("Your browser doesn't support Z3 (needs SharedArrayBuffer)");
@@ -108,6 +109,11 @@ z3Plugin({
   // List of worker scripts to bundle.
   // Can be an array ["src/solver.ts"] or a map { "my-solver": "src/solver.ts" }.
   workers: ["src/z3-worker.ts"],
+
+  // Path to the worker registry file to generate.
+  // This file exports your worker handles with full type safety for Deno LSP.
+  // @default "src/z3-workers.ts"
+  registryPath: "src/z3-workers.ts",
 
   // Directory for Z3 static files (default: auto-detected — "static" or "public")
   publicDir: "public",

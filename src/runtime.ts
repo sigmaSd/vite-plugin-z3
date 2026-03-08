@@ -34,6 +34,34 @@ export interface Z3WorkerHandle {
 }
 
 /**
+ * Create a Z3 worker, send it data, and get the result.
+ * It automatically terminates the worker after completion.
+ *
+ * @param workerUrl - URL to your worker script
+ * @param data - Data to send to the solver
+ */
+export function solveWith<T = unknown>(
+  workerUrl: string,
+  data: unknown,
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(workerUrl);
+    const onMessage = (e: MessageEvent) => {
+      if (e.data?.type === "z3:ready") return;
+      worker.terminate();
+      if (e.data.ok) resolve(e.data.result);
+      else reject(new Error(e.data.error));
+    };
+    worker.addEventListener("message", onMessage);
+    worker.onerror = (err) => {
+      worker.terminate();
+      reject(err);
+    };
+    worker.postMessage(data);
+  });
+}
+
+/**
  * Create a Z3 worker and wait for it to finish loading WASM.
  *
  * @param workerUrl - URL to your worker script
