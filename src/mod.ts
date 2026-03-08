@@ -189,39 +189,53 @@ export function z3Plugin(options: Z3PluginOptions = {}): Plugin[] {
         }
 
         // 3. Bundle custom workers
-        if (options.workers) {
-          const workersMap = Array.isArray(options.workers)
+        const workersMap = options.workers
+          ? (Array.isArray(options.workers)
             ? Object.fromEntries(
               options.workers.map((src) => [
                 src.split("/").pop()?.replace(/\.(ts|js)$/, "") || "worker",
                 src,
               ]),
             )
-            : options.workers;
+            : options.workers)
+          : {};
 
-          for (const [name, srcPath] of Object.entries(workersMap)) {
-            const fullSrcPath = join(root, srcPath);
-            const workerDest = join(dest, `${name}.js`);
-            if (!existsSync(fullSrcPath)) {
+        for (const [name, srcPath] of Object.entries(workersMap)) {
+          const fullSrcPath = join(root, srcPath);
+          const workerDest = join(dest, `${name}.js`);
+
+          if (!existsSync(fullSrcPath)) {
+            if (generateExample) {
+              const srcDir = dirname(fullSrcPath);
+              if (!existsSync(srcDir)) {
+                mkdirSync(srcDir, { recursive: true });
+              }
+              const isTS = fullSrcPath.endsWith(".ts");
+              writeFileSync(fullSrcPath, generateExampleWorkerSource(isTS));
+              console.log(
+                `[vite-plugin-z3] Generated ${srcPath} — edit this with your own Z3 constraints!`,
+              );
+            } else {
               console.warn(
                 `[vite-plugin-z3] Worker source not found: ${fullSrcPath}`,
               );
               continue;
             }
-            if (
-              !existsSync(workerDest) || needsUpdate(fullSrcPath, workerDest)
-            ) {
-              await bundleWorker(fullSrcPath, workerDest, base);
-            }
+          }
+
+          if (
+            !existsSync(workerDest) || needsUpdate(fullSrcPath, workerDest)
+          ) {
+            await bundleWorker(fullSrcPath, workerDest, base);
           }
         }
 
-        // 4. Generate example solver worker
-        if (generateExample) {
+        // 4. Generate example solver worker (if no workers were specified)
+        if (generateExample && Object.keys(workersMap).length === 0) {
           const srcDir = join(root, "src");
           const tsExamplePath = join(srcDir, "z3-worker.ts");
           if (existsSync(srcDir) && !existsSync(tsExamplePath)) {
-            writeFileSync(tsExamplePath, generateTSExampleWorker());
+            writeFileSync(tsExamplePath, generateExampleWorkerSource(true));
             console.log(
               "[vite-plugin-z3] Generated src/z3-worker.ts — add this to your z3Plugin workers option!",
             );
@@ -463,26 +477,33 @@ self.onmessage = async (e) => {
 }
 
 /**
- * Generate an example TypeScript worker source.
+ * Generate an example worker source (to be bundled).
  */
-function generateTSExampleWorker(): string {
+function generateExampleWorkerSource(isTS: boolean): string {
+  const comment = isTS ? " (TypeScript)" : "";
+  const typesImport = isTS
+    ? `\n// Use 'import type' so we don't bundle the whole library (the plugin provides it via the 'z3' argument)\n// deno-lint-ignore no-unused-vars\nimport type { Z3HighLevel } from "npm:z3-solver";\n`
+    : "";
+  const z3Type = isTS ? ": any" : "";
+  const dataType = isTS ? ": any" : "";
+
   return `/**
- * Z3 Solver Worker (TypeScript)
+ * Z3 Solver Worker${comment}
  *
  * This file is bundled by vite-plugin-z3.
- * You can import types from 'z3-solver' for full autocompletion.
+ * ${
+    isTS
+      ? "You can import types from 'z3-solver' for full autocompletion."
+      : "The 'z3' argument provides the initialized high-level API."
+  }
  */
-
-// Use 'import type' so we don't bundle the whole library (the plugin provides it via the 'z3' argument)
-// deno-lint-ignore no-unused-vars
-import type { Z3HighLevel } from "npm:z3-solver";
-
+${typesImport}
 /**
  * Your solver logic.
  * @param z3 - The initialized Z3 high-level API instance.
  * @param data - The data sent from the main thread via z3.run(data).
  */
-export async function solve(z3: any, data: any) {
+export async function solve(z3${z3Type}, data${dataType}) {
   const { Solver, Int } = new z3.Context("main");
   const solver = new Solver();
 
