@@ -48,6 +48,7 @@ export function solveWith<T = unknown>(
     const worker = new Worker(workerUrl);
     const onMessage = (e: MessageEvent) => {
       if (e.data?.type === "z3:ready") return;
+      if (e.data?.type !== "z3:result") return;
       worker.terminate();
       if (e.data.ok) resolve(e.data.result);
       else reject(new Error(e.data.error));
@@ -101,8 +102,9 @@ export function createZ3Worker(workerUrl: string): Promise<Z3WorkerHandle> {
           run<T = unknown>(data: unknown): Promise<T> {
             return new Promise((res, rej) => {
               const onResult = (e: MessageEvent) => {
+                if (e.data?.type !== "z3:result") return;
                 worker.removeEventListener("message", onResult);
-                if (e.data.ok) res(e.data.result ?? e.data.schedule ?? e.data);
+                if (e.data.ok) res(e.data.result);
                 else rej(new Error(e.data.error));
               };
               worker.addEventListener("message", onResult);

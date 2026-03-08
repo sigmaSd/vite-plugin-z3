@@ -389,9 +389,9 @@ async function bundleWorker(
           throw new Error("Worker must export a 'solve' function or have a default export.");
         }
         const result = await solveFn(z3, e.data);
-        self.postMessage({ ok: true, result });
+        self.postMessage({ type: "z3:result", ok: true, result });
       } catch (err) {
-        self.postMessage({ ok: false, error: String(err) });
+        self.postMessage({ type: "z3:result", ok: false, error: String(err) });
       }
     };
   `;
