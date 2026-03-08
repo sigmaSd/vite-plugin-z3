@@ -265,11 +265,11 @@ export function z3Plugin(options: Z3PluginOptions = {}): Plugin[] {
         // 4. Generate example solver worker (if no workers were specified)
         if (generateExample && Object.keys(workersMap).length === 0) {
           const srcDir = join(root, "src");
-          const tsExamplePath = join(srcDir, "z3-worker.ts");
+          const tsExamplePath = join(srcDir, "z3.worker.ts");
           if (existsSync(srcDir) && !existsSync(tsExamplePath)) {
             writeFileSync(tsExamplePath, generateExampleWorkerSource(true));
             console.log(
-              "[vite-plugin-z3] Generated src/z3-worker.ts — add this to your z3Plugin workers option!",
+              "[vite-plugin-z3] Generated src/z3.worker.ts — add this to your z3Plugin workers option!",
             );
           }
         }
@@ -491,6 +491,7 @@ export const ${camelName} = {
   /** Public URL to the bundled worker */
   url: "${b}${name}.js",
   /** Run a solve task and terminate immediately */
+  // deno-lint-ignore no-explicit-any
   run: <T = any>(data: any): Promise<T> => solveWith("${b}${name}.js", data),
   /** Create a long-lived worker instance. Don't forget to .terminate()! */
   create: () => createZ3Worker("${b}${name}.js")

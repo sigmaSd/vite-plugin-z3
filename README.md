@@ -30,7 +30,7 @@ export default defineConfig({
   plugins: [
     z3Plugin({
       // Tell the plugin to bundle your worker
-      workers: ["src/z3-worker.ts"],
+      workers: ["src/z3.worker.ts"],
     }),
   ],
 });
