@@ -27,7 +27,12 @@ import { defineConfig } from "vite";
 import { z3Plugin } from "@sigmasd/vite-plugin-z3";
 
 export default defineConfig({
-  plugins: [z3Plugin()],
+  plugins: [
+    z3Plugin({
+      // Tell the plugin to bundle your worker
+      workers: ["src/z3-worker.ts"],
+    }),
+  ],
 });
 ```
 
@@ -41,17 +46,19 @@ On first run the plugin will:
 
 - Copy Z3 WASM files to your public directory
 - **Bundle `z3-wrapper.js`** (the high-level API) via esbuild
-- **Generate `z3-solver-worker.js`** — a working example solver you can edit
+- **Generate `src/z3-worker.ts`** — a TypeScript example solver you can edit
+- **Bundle `public/z3-worker.js`** automatically from your TS source
 - Inject COOP/COEP headers so `SharedArrayBuffer` works
 
-### 3. Edit the generated worker (`public/z3-solver-worker.js`)
+### 3. Edit your solver (`src/z3-worker.ts`)
 
-The example finds `x + y = 10`. Replace the `solve()` function with your own
-constraints:
+The plugin provides the initialized `z3` instance to your `solve` function. You
+get full autocompletion if you import types from `z3-solver`:
 
-```js
-async function solve(data) {
-  const z3 = await getZ3();
+```ts
+import type { Z3HighLevel } from "z3-solver";
+
+export async function solve(z3: Z3HighLevel, data: any) {
   const { Solver, Int } = new z3.Context("main");
   const solver = new Solver();
 
@@ -70,30 +77,35 @@ async function solve(data) {
 
 ### 4. Use from your app
 
+The plugin makes it easy to use your workers without remembering file paths. Use
+the `z3:workers` namespace to get pre-configured handles:
+
 ```ts
-import { createZ3Worker, isZ3Supported } from "@sigmasd/vite-plugin-z3/runtime";
+import { isZ3Supported } from "@sigmasd/vite-plugin-z3/runtime";
+import { z3Worker } from "z3:workers";
 
 if (!isZ3Supported()) {
   alert("Your browser doesn't support Z3 (needs SharedArrayBuffer)");
 }
 
-const z3 = await createZ3Worker("/z3-solver-worker.js");
-const result = await z3.run({ type: "solve", input: myData });
-console.log("Solution:", result);
-z3.terminate();
-```
+// Option A: One-shot solve (creates worker, runs, terminates)
+const result = await z3Worker.run(myData);
 
-Or use the lightweight `virtual:z3` module:
-
-```ts
-import { solveWith } from "virtual:z3";
-const result = await solveWith("/z3-solver-worker.js", myData);
+// Option B: Long-lived worker (keep Z3 in memory for multiple calls)
+const handle = await z3Worker.create();
+const r1 = await handle.run(d1);
+const r2 = await handle.run(d2);
+handle.terminate();
 ```
 
 ## Options
 
 ```ts
 z3Plugin({
+  // List of worker scripts to bundle.
+  // Can be an array ["src/solver.ts"] or a map { "my-solver": "src/solver.ts" }.
+  workers: ["src/z3-worker.ts"],
+
   // Directory for Z3 static files (default: auto-detected — "static" or "public")
   publicDir: "public",
 
@@ -119,16 +131,16 @@ z3Plugin({
 ### Architecture
 
 ```
-Main Thread                          Web Worker
-───────────                          ──────────
-new Worker("/z3-solver-worker.js")
-  │                                  ├─ importScripts("z3-built.js")     ← WASM loader
-  │                                  ├─ importScripts("z3-wrapper.js")   ← High-level API
-  │                                  └─ getZ3() caches context
+Main Thread                          Web Worker (Bundled)
+───────────                          ────────────────────
+new Worker("/z3-worker.js")
+  │                                  ├─ importScripts("z3-built.js")
+  │                                  ├─ importScripts("z3-wrapper.js")
+  │                                  ├─ User's TS/JS logic (bundled)
+  │                                  └─ postMessage({ type: "z3:ready" })
   │
   ├── postMessage(data) ──────────►  self.onmessage = async (e) => {
-  │                                    const z3 = await getZ3();
-  │                                    // ... solve ...
+  │                                    const result = await solve(z3, e.data);
   │   ◄── result ◄────────────────     self.postMessage({ ok: true, result });
   │                                  }
   └── worker.terminate()

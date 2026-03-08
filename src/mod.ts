@@ -45,6 +45,14 @@ export interface Z3PluginOptions {
    * @default true
    */
   generateExample?: boolean;
+
+  /**
+   * List of worker scripts to bundle.
+   * Can be an array of source paths (e.g. ["src/solver.ts"])
+   * or a mapping of output names to source paths (e.g. { "my-solver": "src/solver.ts" }).
+   * Bundled workers will be placed in the public directory.
+   */
+  workers?: string[] | Record<string, string>;
 }
 
 const Z3_FILES = ["z3-built.js", "z3-built.wasm"];
@@ -180,29 +188,76 @@ export function z3Plugin(options: Z3PluginOptions = {}): Plugin[] {
           await bundleWrapper(z3BuildDir, wrapperDest);
         }
 
-        // 3. Generate example solver worker
+        // 3. Bundle custom workers
+        if (options.workers) {
+          const workersMap = Array.isArray(options.workers)
+            ? Object.fromEntries(
+              options.workers.map((src) => [
+                src.split("/").pop()?.replace(/\.(ts|js)$/, "") || "worker",
+                src,
+              ]),
+            )
+            : options.workers;
+
+          for (const [name, srcPath] of Object.entries(workersMap)) {
+            const fullSrcPath = join(root, srcPath);
+            const workerDest = join(dest, `${name}.js`);
+            if (!existsSync(fullSrcPath)) {
+              console.warn(
+                `[vite-plugin-z3] Worker source not found: ${fullSrcPath}`,
+              );
+              continue;
+            }
+            if (
+              !existsSync(workerDest) || needsUpdate(fullSrcPath, workerDest)
+            ) {
+              await bundleWorker(fullSrcPath, workerDest, base);
+            }
+          }
+        }
+
+        // 4. Generate example solver worker
         if (generateExample) {
-          const exampleDest = join(dest, "z3-solver-worker.js");
-          if (!existsSync(exampleDest)) {
-            writeFileSync(exampleDest, generateExampleWorker(base));
+          const srcDir = join(root, "src");
+          const tsExamplePath = join(srcDir, "z3-worker.ts");
+          if (existsSync(srcDir) && !existsSync(tsExamplePath)) {
+            writeFileSync(tsExamplePath, generateTSExampleWorker());
             console.log(
-              "[vite-plugin-z3] Generated z3-solver-worker.js — edit this with your own Z3 constraints!",
+              "[vite-plugin-z3] Generated src/z3-worker.ts — add this to your z3Plugin workers option!",
             );
+          } else {
+            const exampleDest = join(dest, "z3-solver-worker.js");
+            if (!existsSync(exampleDest)) {
+              writeFileSync(exampleDest, generateExampleWorker(base));
+              console.log(
+                "[vite-plugin-z3] Generated z3-solver-worker.js — edit this with your own Z3 constraints!",
+              );
+            }
           }
         }
       },
     },
 
-    // Plugin 3: Virtual module
+    // Plugin 3: Virtual modules for workers
     {
-      name: "vite-plugin-z3:virtual",
+      name: "vite-plugin-z3:workers",
 
       resolveId(id) {
-        if (id === "virtual:z3") return "\0virtual:z3";
+        if (id === "z3:workers") return "\0z3:workers";
       },
 
       load(id) {
-        if (id === "\0virtual:z3") return generateVirtualModule(base);
+        if (id === "\0z3:workers") {
+          const workers = options.workers
+            ? (Array.isArray(options.workers)
+              ? options.workers.map((src) =>
+                src.split("/").pop()?.replace(/\.(ts|js)$/, "") || "worker"
+              )
+              : Object.keys(options.workers))
+            : [];
+
+          return generateVirtualModule(base, workers);
+        }
       },
     },
   ];
@@ -250,6 +305,74 @@ async function bundleWrapper(
 })();
 `.trim(),
     );
+  } finally {
+    try {
+      unlinkSync(entryPath);
+    } catch { /* ignore */ }
+  }
+}
+
+/**
+ * Bundle a user's Z3 worker (TS or JS) into a single script.
+ * Injects Z3 initialization boilerplate automatically.
+ */
+async function bundleWorker(
+  srcPath: string,
+  outputPath: string,
+  base: string,
+): Promise<void> {
+  const b = base.endsWith("/") ? base : base + "/";
+  // The boilerplate loads Z3 and sets up the bridge to the user's solve function.
+  // Using an IIFE format so it's a valid script file for new Worker().
+  const entryCode = `
+    globalThis.__filename = new URL("${b}z3-built.js", self.location.href).href;
+    importScripts("${b}z3-built.js");
+    globalThis.global = globalThis;
+    globalThis.global.initZ3 = globalThis.initZ3;
+    importScripts("${b}z3-wrapper.js");
+
+    let _z3 = null;
+    async function getZ3() {
+      if (_z3) return _z3;
+      _z3 = await globalThis.z3Init();
+      return _z3;
+    }
+
+    self.postMessage({ type: "z3:ready" });
+
+    import * as UserSolver from "${srcPath.replace(/\\/g, "/")}";
+
+    self.onmessage = async (e) => {
+      try {
+        const z3 = await getZ3();
+        // Support both default export and named 'solve' export
+        const solveFn = UserSolver.default || UserSolver.solve;
+        if (typeof solveFn !== "function") {
+          throw new Error("Worker must export a 'solve' function or have a default export.");
+        }
+        const result = await solveFn(z3, e.data);
+        self.postMessage({ ok: true, result });
+      } catch (err) {
+        self.postMessage({ ok: false, error: String(err) });
+      }
+    };
+  `;
+
+  const entryPath = outputPath + ".entry.tmp.js";
+  writeFileSync(entryPath, entryCode);
+
+  try {
+    await esbuild({
+      entryPoints: [entryPath],
+      bundle: true,
+      format: "iife",
+      platform: "browser",
+      outfile: outputPath,
+      logLevel: "warning",
+    });
+    console.log(`[vite-plugin-z3] Bundled worker: ${outputPath}`);
+  } catch (err) {
+    console.error(`[vite-plugin-z3] Failed to bundle worker ${srcPath}:`, err);
   } finally {
     try {
       unlinkSync(entryPath);
@@ -340,21 +463,83 @@ self.onmessage = async (e) => {
 }
 
 /**
+ * Generate an example TypeScript worker source.
+ */
+function generateTSExampleWorker(): string {
+  return `/**
+ * Z3 Solver Worker (TypeScript)
+ *
+ * This file is bundled by vite-plugin-z3.
+ * You can import types from 'z3-solver' for full autocompletion.
+ */
+
+// Use 'import type' so we don't bundle the whole library (the plugin provides it via the 'z3' argument)
+// deno-lint-ignore no-unused-vars
+import type { Z3HighLevel } from "npm:z3-solver";
+
+/**
+ * Your solver logic.
+ * @param z3 - The initialized Z3 high-level API instance.
+ * @param data - The data sent from the main thread via z3.run(data).
+ */
+export async function solve(z3: any, data: any) {
+  const { Solver, Int } = new z3.Context("main");
+  const solver = new Solver();
+
+  // ── Example: Find x and y where x + y = 10, both positive, x <= y ──
+  const x = Int.const("x");
+  const y = Int.const("y");
+
+  solver.add(x.ge(1));        // x >= 1
+  solver.add(y.ge(1));        // y >= 1
+  solver.add(x.add(y).eq(10)); // x + y = 10
+  solver.add(x.le(y));        // x <= y
+
+  const status = await solver.check();
+
+  if (status === "sat") {
+    const model = solver.model();
+    return {
+      x: Number(model.eval(x).toString()),
+      y: Number(model.eval(y).toString()),
+    };
+  } else {
+    throw new Error("No solution found (status: " + status + ")");
+  }
+}
+`;
+}
+
+/**
  * Generate the virtual:z3 module code.
  */
-function generateVirtualModule(base: string): string {
+function generateVirtualModule(base: string, workerNames: string[]): string {
   const b = base.endsWith("/") ? base : base + "/";
+
+  let exports = "";
+  for (const name of workerNames) {
+    const camelName = toCamelCase(name);
+    exports += `
+/**
+ * Worker handle for '${name}.js'.
+ */
+export const ${camelName} = {
+  /** Public URL to the bundled worker */
+  url: "${b}${name}.js",
+  /** Run a solve task and terminate immediately */
+  run: (data) => solveWith("${b}${name}.js", data),
+  /** Create a long-lived worker instance */
+  create: () => createZ3Worker("${b}${name}.js")
+};
+`;
+  }
+
   return `
+import { createZ3Worker } from "@sigmasd/vite-plugin-z3/runtime";
+
 /**
  * Create a Z3 worker, send it data, and get the result.
- *
- * @param {string} workerUrl - URL to your solver worker
- * @param {any} data - Data to send to the worker
- * @returns {Promise<any>} The solver result
- *
- * @example
- * import { solveWith } from "virtual:z3";
- * const result = await solveWith("${b}z3-solver-worker.js", { n: 10 });
+ * It automatically terminates the worker after completion.
  */
 export function solveWith(workerUrl, data) {
   return new Promise((resolve, reject) => {
@@ -372,21 +557,14 @@ export function solveWith(workerUrl, data) {
     worker.postMessage(data);
   });
 }
-
-/**
- * Check if the current environment supports Z3 (SharedArrayBuffer + Workers).
- */
-export function isZ3Supported() {
-  return typeof SharedArrayBuffer !== "undefined" && typeof Worker !== "undefined";
-}
-
-/**
- * Check if cross-origin isolation is active (required for SharedArrayBuffer).
- */
-export function isCrossOriginIsolated() {
-  return typeof crossOriginIsolated !== "undefined" && crossOriginIsolated;
-}
+${exports}
 `.trim();
+}
+
+function toCamelCase(str: string): string {
+  return str
+    .replace(/[^a-zA-Z0-9]+(.)/g, (_m, chr) => chr.toUpperCase())
+    .replace(/^([A-Z])/, (m) => m.toLowerCase());
 }
 
 export default z3Plugin;

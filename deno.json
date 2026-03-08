@@ -1,6 +1,6 @@
 {
   "name": "@sigmasd/vite-plugin-z3",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "license": "MIT",
   "exports": {
     ".": "./src/mod.ts",
