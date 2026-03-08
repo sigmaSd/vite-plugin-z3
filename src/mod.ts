@@ -495,7 +495,7 @@ export const ${camelName} = {
   // deno-lint-ignore no-explicit-any
   run: <T = any>(data: any): Promise<T> => solveWith("${b}${name}.js", data),
   /** Create a long-lived worker instance. Don't forget to .terminate()! */
-  create: () => createZ3Worker("${b}${name}.js")
+  create: () => createZ3Worker("${b}${name}.js"),
 };
 `;
   }
