@@ -392,9 +392,9 @@ async function bundleWorker(
 function generateExampleWorkerSource(isTS: boolean): string {
   const comment = isTS ? " (TypeScript)" : "";
   const typesImport = isTS
-    ? `\n// Use 'import type' so we don't bundle the whole library (the plugin provides it via the 'z3' argument)\n// deno-lint-ignore no-unused-vars\nimport type { Z3HighLevel } from "npm:z3-solver";\n`
+    ? `\n// Use 'import type' so we don't bundle the whole library (the plugin provides it via the 'z3' argument)\nimport type { Z3HighLevel } from "z3-solver";\n`
     : "";
-  const z3Type = isTS ? ": any" : "";
+  const z3Type = isTS ? ": Z3HighLevel" : "";
   const dataType = isTS ? ": any" : "";
 
   return `/**
@@ -403,7 +403,7 @@ function generateExampleWorkerSource(isTS: boolean): string {
  * This file is bundled by vite-plugin-z3.
  * ${
     isTS
-      ? "You can import types from 'z3-solver' for full autocompletion."
+      ? "We import types from 'z3-solver' for full autocompletion."
       : "The 'z3' argument provides the initialized high-level API."
   }
  */
@@ -413,7 +413,8 @@ ${typesImport}
  * @param z3 - The initialized Z3 high-level API instance.
  * @param data - The data sent from the main thread via z3.run(data).
  */
-export async function solve(z3${z3Type}, data${dataType}) {
+// deno-lint-ignore no-explicit-any
+export async function solve(z3${z3Type}, _data${dataType}) {
   const { Solver, Int } = new z3.Context("main");
   const solver = new Solver();
 
